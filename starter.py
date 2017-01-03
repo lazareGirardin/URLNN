@@ -64,10 +64,33 @@ class SarsaAgent():
                 break
 
     def learn(self):
-        # This is your job!
+        
+        #init
+        n = 100
+        dt = 0.01
+        e = np.zeros(3, self.N**2)
+
+        
+        # choose next action according to policy
+        a_next, Q_old, rj = self._choose_action(w)
+        # Simulate the action
+        self.mountain_car.apply_force(a-1)
+        # simulate the timestep
+        self.mountain_car.simulate_timesteps(n, dt)
+
+        # Compute Temporal difference error
+        TD_err = self.R - (Q_old[a] - self.gamma * self._activity_Q(w)[a_next])
+        # Elligibility update
+        e = self.gamma*self.lambda_*e
+        e[a_next] = e + rj
+        # Weights update
+        w = w + self.eta * TD_err * e
+        # Update action
+        a = a_next
+
         pass
 
-    def _activity_r(self, x, x_d):
+    def _activity_r(self):
     """
         Computes the Gaussian activities r of input neurons.
         The function returns an array of activity rj line by line of size (N², 1)
@@ -81,12 +104,12 @@ class SarsaAgent():
         # Create a meshgrid of the neurons centers
         grid_x, grid_phi = np.meshgrid(x_centers, phi_centers)
         # Compute the activity for each neurons
-        rj = np.exp(-((grid_x - x)/sig_x)**2 
-                   -((grid_phi-x_d)/grid_phi)**2)
+        rj = np.exp(-((grid_x - self.mountain_car.x)/sig_x)**2 
+                   -((grid_phi-self.mountain_car.x_d)/grid_phi)**2)
         # Return array in from top left to bottom right line after line
         return np.reshape(rj, (self.N**2, 1))
 
-    def _activity_Q(self, w, x, x_d):
+    def _activity_Q(self, w):
     """
         Compute the activity of the output neurons of a state s = (x, x_d)
         The functions returns an array of the activity for 
@@ -99,10 +122,10 @@ class SarsaAgent():
         Ouput: 
                 -Q : Q-activity of shape [# output neurons]
     """
-        rj = self._activity_r(x, x_d)
-        return np.sum(np.multiply(w,rj), axis=1)
+        rj = self._activity_r()
+        return np.sum(np.multiply(w,rj), axis=1), rj
 
-    def _choose_action(self, w, x, x_d, tau):
+    def _choose_action(self, w, tau):
     """
         Choose an action depending for a state s=(x, x_d)
         Inputs:
@@ -111,19 +134,31 @@ class SarsaAgent():
                 -state:
                     -x   : position of the car
                     -x_d : speed of the car
+        output:
+                -action : (-1) for backward, (0) for engine stop and (+1) for forward
+                -Q      : Q activity at current timestep
     """
 
         ##     CHANGE WEIGHTS TO SELF.W???
 
         # Compute exponential of each Q-activity over tau
-        exp_action = np.exp(self._activity_Q(w, x, x_d)/tau)
+        Q, rj = self._activity_Q(w)
+        exp_action = np.exp(Q/tau)
         # Compute probability of taking each actions
         prob_action = exp_action/np.sum(exp_action)
 
-        ## COMPUTE CHOICE
+        # Choose an action depending on the probability
+        rand = numpy.random.rand()
+        if rand < prob_action[0]:
+            action = 0
+        else if rand < prob_action[0]+prob_action[1]:
+            action = 1
+        # Should be useless -> else
+        else if rand < prob_action[0]+prob_action[1]+prob_action[2]:
+            action = 2
 
-    def _get_reward(self, x):
-        return np.sign(max(0, x))
+        return action, Q, rj
+
 
 if __name__ == "__main__":
     d = SarsaAgent()
