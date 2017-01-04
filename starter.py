@@ -26,7 +26,7 @@ class SarsaAgent():
 		# Decay factor of elligibility trace
 		self.lambda_ = 0.4
 
-	def visualize_trial(self, n_steps = 200):
+	def visualize_trial(self, w, n_steps = 200):
 		"""Do a trial without learning, with display.
 
 		Parameters
@@ -43,11 +43,16 @@ class SarsaAgent():
 		# make sure the mountain-car is reset
 		self.mountain_car.reset()
 
+		tau = 1
+
 		for n in range(n_steps):
 			print("\rt =", self.mountain_car.t)
-			sys.stdout.flush()            
-			# choose a random action
-			self.mountain_car.apply_force(np.random.randint(3) - 1)
+			sys.stdout.flush()  
+
+			# choose first action according to policy
+			a, Q, rj = self._choose_action(w, tau)
+			# Simulate the action
+			self.mountain_car.apply_force(a-1)
 			# simulate the timestep
 			self.mountain_car.simulate_timesteps(100, 0.01)
 
@@ -133,11 +138,12 @@ class SarsaAgent():
 		tau = 1
 		trail_number = 1
 
+		e = np.zeros((3, self.N**2))
+		w = np.zeros((3, self.N**2))
+
 		for trail in range(trail_number):
 			#init
 			self.mountain_car.reset()
-			e = np.zeros((3, self.N**2))
-			w = np.zeros((3, self.N**2))
 
 			# choose first action according to policy
 			a, Q, rj = self._choose_action(w, tau)
@@ -163,15 +169,14 @@ class SarsaAgent():
 				w = w + self.eta*TD_err*e
 				# Update action
 				a = a_next
-			print(self.mountain_car.t)
+			print("TRIAL {t},  timesteps {ts}".format(t=trail+1, ts=self.mountain_car.t))	
 
-		pass
+		return w
 
 
 if __name__ == "__main__":
 	d = SarsaAgent()
-	d.learn()
-
-	#d.visualize_trial()
+	w = d.learn()
+	d.visualize_trial(w)
 	#plb.show()
 	#import pdb; pdb.set_trace()
