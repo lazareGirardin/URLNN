@@ -75,17 +75,9 @@ class SarsaAgent():
 			Computes the Gaussian activities r of input neurons.
 			The function returns an array of activity rj line by line of size N²
 		"""
-		# Gaussian width is the distance between centers
-		sig_x = 180/self.N
-		sig_phi = 30/self.N
-		# The centers are placed along the intervals
-		x_centers = np.linspace(-150.0, 30.0, self.N)
-		phi_centers = np.linspace(15.0, -15.0, self.N)
-		# Create a meshgrid of the neurons centers
-		grid_x, grid_phi = np.meshgrid(x_centers, phi_centers)
 		# Compute the activity for each neurons
-		rj = np.exp(-((grid_x - self.mountain_car.x)/sig_x)**2 
-				    -((grid_phi-self.mountain_car.x_d)/grid_phi)**2)
+		rj = np.exp(-((self.grid_x - self.mountain_car.x)/self.sig_x)**2 
+				    -((self.grid_phi-self.mountain_car.x_d)/self.grid_phi)**2)
 		# Return array in from top left to bottom right line after line
 		return np.reshape(rj, (self.N**2))
 
@@ -141,11 +133,20 @@ class SarsaAgent():
 		n = 100
 		dt = 0.01
 		#tau = 0.9
-		trail_number = 3000
+		trail_number = 10
 		maxTimesteps = 1500
 
 		w = np.zeros((3, self.N**2))
 		e = np.zeros((3, self.N**2))
+
+		# Gaussian width is the distance between centers
+		self.sig_x = 180/self.N
+		self.sig_phi = 30/self.N
+		# The centers are placed along the intervals
+		x_centers = np.linspace(-150.0, 30.0, self.N)
+		phi_centers = np.linspace(15.0, -15.0, self.N)
+		# Create a meshgrid of the neurons centers
+		self.grid_x, self.grid_phi = np.meshgrid(x_centers, phi_centers)
 
 		end_tau = 0.01
 		tau0 = 5
