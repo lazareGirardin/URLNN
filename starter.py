@@ -18,11 +18,13 @@ class SarsaAgent():
 		self.N = grid_size
 
 		# Learning rate
-		self.eta = 0.1
+		self.eta = 0.15
 		# Discount Factor
 		self.gamma = 0.95
 		# Decay factor of elligibility trace
 		self.lambda_ = 0.9
+		# Exploration parameter
+		self.tau = 5
 
 	def visualize_trial(self, w, n_steps = 200):
 		"""Do a trial without learning, with display.
@@ -117,7 +119,8 @@ class SarsaAgent():
 		prob_action = exp_action/np.sum(exp_action)
 
 		# Choose an action depending on the probability
-		
+		action = np.random.choice(3, p=prob_action)
+		"""
 		rand = np.random.rand()
 		if rand < prob_action[0]:
 			action = 0
@@ -125,7 +128,7 @@ class SarsaAgent():
 			action = 1
 		else:
 			action = 2
-
+		"""
 		return action, Q, rj
 
 	def learn(self):
@@ -149,21 +152,22 @@ class SarsaAgent():
 		self.grid_x, self.grid_phi = np.meshgrid(x_centers, phi_centers)
 
 		end_tau = 0.01
-		tau0 = 5
-		alpha = -maxTimesteps/np.log(end_tau/tau0)
+		alpha = -maxTimesteps/np.log(end_tau/self.tau)
 
 		end_eta = 0.005
-		eta0 = 0.15
-		beta = -maxTimesteps/np.log(end_eta/eta0)
+		beta = -maxTimesteps/np.log(end_eta/self.eta)
 
+		# ********************* EPOCHS **********************
 		for trail in range(trail_number):
 			#init
 			self.mountain_car.reset()
 			
-			tau = tau0
-			eta = eta0
+			tau = self.tau
+			eta = self.eta
 
-			# choose first action according to policy
+			# ************ LEARNING - 1 TRAIL ***************
+
+			# choose first action according to policy (when w=0, random)
 			a, Q_s, rj_s = self._choose_action(w, tau)
 			# Simulate the action
 			self.mountain_car.apply_force(a-1)
@@ -172,8 +176,8 @@ class SarsaAgent():
 
 			for i in range(maxTimesteps):
 				# Decaying exploration parameter
-				tau = tau0*np.exp(-i/alpha)
-				eta = eta0*np.exp(-i/beta)
+				tau = self.tau*np.exp(-i/alpha)
+				eta = self.eta*np.exp(-i/beta)
 
 				# choose next action according to policy
 				a_next, Q_s, rj_s = self._choose_action(w, tau)
@@ -181,9 +185,8 @@ class SarsaAgent():
 				self.mountain_car.apply_force(a_next-1)
 				self.mountain_car.simulate_timesteps(n, dt)
 
-				# Compute Temporal difference error
 				Q_next, dummy = self._activity_Q(w)
-
+				# Compute Temporal difference error
 				TD_err = self.mountain_car.R - (Q_s[a] - self.gamma*Q_next[a_next])
 				# Elligibility update
 				e = self.gamma*self.lambda_*e
