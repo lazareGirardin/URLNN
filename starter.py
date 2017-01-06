@@ -8,23 +8,21 @@ class SarsaAgent():
 	"""A not so good agent for the mountain-car task.
 	"""
 
-	def __init__(self, mountain_car = None, parameter1 = 3.0, grid_size=20):
+	def __init__(self, mountain_car = None, grid_size=20):
 		
 		if mountain_car is None:
 			self.mountain_car = mountaincar.MountainCar()
 		else:
 			self.mountain_car = mountain_car
 
-		self.parameter1 = parameter1
-
 		self.N = grid_size
 
 		# Learning rate
-		self.eta = 0.01
+		self.eta = 0.1
 		# Discount Factor
 		self.gamma = 0.95
 		# Decay factor of elligibility trace
-		self.lambda_ = 0.4
+		self.lambda_ = 0.9
 
 	def visualize_trial(self, w, n_steps = 200):
 		"""Do a trial without learning, with display.
@@ -36,19 +34,25 @@ class SarsaAgent():
 		
 		# prepare for the visualization
 		plb.ion()
+		plb.pause(0.0001)
 		mv = mountaincar.MountainCarViewer(self.mountain_car)
 		mv.create_figure(n_steps, n_steps)
-		plb.draw()
+		plb.show()
 			
 		# make sure the mountain-car is reset
 		self.mountain_car.reset()
 
-		tau = 1
+		#tau = 0.9
+		end_tau = 0.1
+		tau0 = 10
+		alpha = -n_steps/np.log(end_tau/tau0)
 
+		tau = tau0
 		for n in range(n_steps):
-			print("\rt =", self.mountain_car.t)
-			sys.stdout.flush()  
+			print("\rt =", self.mountain_car.t,
+							sys.stdout.flush())  
 
+			tau = tau0*np.exp(-n/alpha)
 			# choose first action according to policy
 			a, Q, rj = self._choose_action(w, tau)
 			# Simulate the action
@@ -58,7 +62,8 @@ class SarsaAgent():
 
 			# update the visualization
 			mv.update_figure()
-			plb.draw()            
+			plb.show()
+			plb.pause(0.0001)            
 			
 			# check for rewards
 			if self.mountain_car.R > 0.0:
@@ -68,7 +73,7 @@ class SarsaAgent():
 	def _activity_r(self):
 		"""
 			Computes the Gaussian activities r of input neurons.
-			The function returns an array of activity rj line by line of size (N², 1)
+			The function returns an array of activity rj line by line of size N²
 		"""
 		# Gaussian width is the distance between centers
 		sig_x = 180/self.N
@@ -80,9 +85,9 @@ class SarsaAgent():
 		grid_x, grid_phi = np.meshgrid(x_centers, phi_centers)
 		# Compute the activity for each neurons
 		rj = np.exp(-((grid_x - self.mountain_car.x)/sig_x)**2 
-				   -((grid_phi-self.mountain_car.x_d)/grid_phi)**2)
+				    -((grid_phi-self.mountain_car.x_d)/grid_phi)**2)
 		# Return array in from top left to bottom right line after line
-		return np.reshape(rj, (1, self.N**2))
+		return np.reshape(rj, (self.N**2))
 
 	def _activity_Q(self, w):
 		"""
@@ -98,7 +103,7 @@ class SarsaAgent():
 					-Q : Q-activity of shape [# output neurons]
 		"""
 		rj = self._activity_r()
-		return np.sum(np.multiply(w,rj), axis=1), rj
+		return np.dot(w,rj), rj
 
 	def _choose_action(self, w, tau):
 		"""
@@ -120,13 +125,13 @@ class SarsaAgent():
 		prob_action = exp_action/np.sum(exp_action)
 
 		# Choose an action depending on the probability
+		
 		rand = np.random.rand()
 		if rand < prob_action[0]:
 			action = 0
-		elif rand < prob_action[0]+prob_action[1]:
+		elif rand <= prob_action[0]+prob_action[1]:
 			action = 1
-		# Should be useless -> else
-		elif rand < prob_action[0]+prob_action[1]+prob_action[2]:
+		else:
 			action = 2
 
 		return action, Q, rj
@@ -135,48 +140,71 @@ class SarsaAgent():
 		
 		n = 100
 		dt = 0.01
-		tau = 1
-		trail_number = 1
+		#tau = 0.9
+		trail_number = 3000
+		maxTimesteps = 1500
 
-		e = np.zeros((3, self.N**2))
 		w = np.zeros((3, self.N**2))
+		e = np.zeros((3, self.N**2))
+
+		end_tau = 0.01
+		tau0 = 5
+		alpha = -maxTimesteps/np.log(end_tau/tau0)
+
+		end_eta = 0.005
+		eta0 = 0.15
+		beta = -maxTimesteps/np.log(end_eta/eta0)
 
 		for trail in range(trail_number):
 			#init
 			self.mountain_car.reset()
+			
+			tau = tau0
+			eta = eta0
 
 			# choose first action according to policy
-			a, Q, rj = self._choose_action(w, tau)
+			a, Q_s, rj_s = self._choose_action(w, tau)
 			# Simulate the action
 			self.mountain_car.apply_force(a-1)
 			# simulate the timestep
 			self.mountain_car.simulate_timesteps(n, dt)
 
-			while self.mountain_car.R < 1:
+			for i in range(maxTimesteps):
+				# Decaying exploration parameter
+				tau = tau0*np.exp(-i/alpha)
+				eta = eta0*np.exp(-i/beta)
+
 				# choose next action according to policy
-				a_next, Q, rj = self._choose_action(w, tau)
+				a_next, Q_s, rj_s = self._choose_action(w, tau)
 				# Simulate the action
 				self.mountain_car.apply_force(a_next-1)
 				self.mountain_car.simulate_timesteps(n, dt)
 
 				# Compute Temporal difference error
 				Q_next, dummy = self._activity_Q(w)
-				TD_err = self.mountain_car.R - (Q[a] - self.gamma*Q_next[a_next])
+
+				TD_err = self.mountain_car.R - (Q_s[a] - self.gamma*Q_next[a_next])
 				# Elligibility update
 				e = self.gamma*self.lambda_*e
-				e[a] = e[a] + rj
+				#import pdb; pdb.set_trace()
+				e[a] = e[a] + rj_s
 				# Weights update
-				w = w + self.eta*TD_err*e
+				w = w + eta*TD_err*e
 				# Update action
 				a = a_next
+
+				if self.mountain_car.R >= 1:
+					break
+
 			print("TRIAL {t},  timesteps {ts}".format(t=trail+1, ts=self.mountain_car.t))	
 
 		return w
 
 
 if __name__ == "__main__":
+
 	d = SarsaAgent()
 	w = d.learn()
-	d.visualize_trial(w)
-	#plb.show()
-	#import pdb; pdb.set_trace()
+	import pdb; pdb.set_trace()
+	d.visualize_trial(w, 400)
+	plb.show()
