@@ -23,14 +23,19 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 			return
 
 	if (test):
-		t_out = np.zeros((agent_number, trial_number, 1))
+		nb_episode_played = 10
 		s = sarsa.SarsaAgent()
+		step = int(trial_number/nb_episode_played)
+		print(step)
+		start = step + trial_number%nb_episode_played
+		print(start)
+		t_out = np.zeros((agent_number, nb_episode_played, 1))
 		for agent in range(agent_number):
-			for trial in range(trial_number):
-				t_out[agent, trial] = s.execute_trial(w[agent, trial])
+			for i, trial in enumerate(range(start-1, trial_number+step-1, step)):
+				t_out[agent, i] = s.execute_trial(w[agent, trial])
 
 		plt.figure(1)
-		plt.plot(np.arange(learning_latencies.shape[1]), 
+		plt.plot(np.arange(1, nb_episode_played+1)*step, 
 					np.mean(t_out, axis=0))
 		plt.show()
 

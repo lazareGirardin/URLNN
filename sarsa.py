@@ -9,7 +9,7 @@ class SarsaAgent():
 	"""
 
 	def __init__(self, mountain_car = None, grid_size=20, eta=0.05, 
-					gamma=0.95, lambda_=0.3, tau=2):
+					gamma=0.95, lambda_=0.6, tau=0.5):
 		
 		if mountain_car is None:
 			self.mountain_car = mountaincar.MountainCar()
@@ -131,15 +131,7 @@ class SarsaAgent():
 
 		# Choose an action depending on the probability
 		action = np.random.choice(3, p=prob_action)
-		"""
-		rand = np.random.rand()
-		if rand < prob_action[0]:
-			action = 0
-		elif rand <= prob_action[0]+prob_action[1]:
-			action = 1
-		else:
-			action = 2
-		"""
+
 		return action, Q, rj
 
 	def learn(self, trial_number = 100, verbose=False):
@@ -149,7 +141,8 @@ class SarsaAgent():
 		#tau = 0.9
 		maxTimesteps = 5000
 
-		w = np.random.rand(3, self.N**2)
+		w = 0.01*np.random.rand(3, self.N**2)+0.1
+		#w = np.zeros((3, self.N**2))
 		e = np.zeros((3, self.N**2))
 
 		end_tau = 0.01
@@ -165,8 +158,7 @@ class SarsaAgent():
 		# ********************* EPOCHS **********************
 		for trial in range(trial_number):
 			#init
-			self.mountain_car.reset()
-			
+			self.mountain_car.reset()			
 			tau = self.tau
 			#eta = self.eta
 
@@ -186,6 +178,7 @@ class SarsaAgent():
 
 				# choose next action according to policy
 				a_next, Q_s, rj_s = self._choose_action(w, tau)
+				#print(Q_s)
 				# Simulate the action
 				self.mountain_car.apply_force(a_next-1)
 				self.mountain_car.simulate_timesteps(n, dt)
@@ -205,7 +198,7 @@ class SarsaAgent():
 				if self.mountain_car.R >= 1:
 					break
 
-			print("TRIAL {t},  timesteps {ts}".format(t=trial+1, ts=self.mountain_car.t))
+			print("\t TRIAL {t},  timesteps {ts}".format(t=trial+1, ts=self.mountain_car.t))
 			if verbose and trial%20==0:
 				self.visualize_trial(w, 250)
 				plb.close()
@@ -216,12 +209,11 @@ class SarsaAgent():
 		return trial_weights, trial_latencies
 
 	def execute_trial(self, w):
-
 		# make sure the mountain-car is reset
 		self.mountain_car.reset()
 
-		tau = 0.01
-		maxSteps = 5000
+		tau = 0.1
+		maxSteps = 600
 		n=0
 		while self.mountain_car.R < 1 and n < maxSteps:
 			n = n+1
@@ -240,6 +232,7 @@ if __name__ == "__main__":
 	trial_number = 100
 	d = SarsaAgent()
 	for i in range(10):
+		print("AGENT ", i)
 		w, latencies = d.learn(trial_number, verbose)
 		w_id = 'data/Trial_weights_%.2d' % i +'.npy'
 		lat_id = 'data/Trial_latencies_%.2d' %i + '.npy'
