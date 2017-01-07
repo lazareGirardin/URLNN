@@ -8,7 +8,8 @@ class SarsaAgent():
 	"""A not so good agent for the mountain-car task.
 	"""
 
-	def __init__(self, mountain_car = None, grid_size=20):
+	def __init__(self, mountain_car = None, grid_size=20, eta=0.1, 
+					gamma=0.95, lambda_=0.7, tau=2):
 		
 		if mountain_car is None:
 			self.mountain_car = mountaincar.MountainCar()
@@ -18,13 +19,13 @@ class SarsaAgent():
 		self.N = grid_size
 
 		# Learning rate
-		self.eta = 0.1
+		self.eta = eta
 		# Discount Factor
-		self.gamma = 0.95
+		self.gamma = gamma
 		# Decay factor of elligibility trace
-		self.lambda_ = 0.7
+		self.lambda_ = lambda_
 		# Exploration parameter
-		self.tau = 2
+		self.tau = tau
 
 	def visualize_trial(self, w, n_steps = 200):
 		"""Do a trial without learning, with display.
@@ -137,7 +138,7 @@ class SarsaAgent():
 		n = 100
 		dt = 0.01
 		#tau = 0.9
-		trial_number = 200
+		trial_number = 2
 		maxTimesteps = 5000
 
 		w = np.random.rand(3, self.N**2)
@@ -148,11 +149,13 @@ class SarsaAgent():
 		self.sig_phi = 30/self.N
 		# The centers are placed along the intervals
 		x_centers = np.linspace(-150.0, 30.0, self.N)
+		print(x_centers.shape)
 		phi_centers = np.linspace(15.0, -15.0, self.N)
+		print(phi_centers.shape)
 		# Create a meshgrid of the neurons centers
 		self.grid_x, self.grid_phi = np.meshgrid(x_centers, phi_centers)
 
-		end_tau = 0.001
+		end_tau = 0.01
 		alpha = -maxTimesteps/np.log(end_tau/self.tau)
 
 		#end_eta = 0.05
@@ -206,7 +209,7 @@ class SarsaAgent():
 					break
 
 			print("TRIAL {t},  timesteps {ts}".format(t=trial+1, ts=self.mountain_car.t))
-			if verbose and trial%100==0:
+			if verbose and trial%20==0:
 				self.visualize_trial(w, 250)
 				plb.close()
 
@@ -220,8 +223,8 @@ if __name__ == "__main__":
 	verbose = True
 	d = SarsaAgent()
 	w, latencies = d.learn(verbose)
-	np.save('Trial_weights.npy', w)
-	np.save('Trial_latencies.npy', latencies)
+	np.save('data/Trial_weights_3.npy', w)
+	np.save('data/Trial_latencies_3.npy', latencies)
 	import pdb; pdb.set_trace()
 	d.visualize_trial(w[-1], 400)
 	plb.show()
