@@ -8,8 +8,8 @@ class SarsaAgent():
 	"""A not so good agent for the mountain-car task.
 	"""
 
-	def __init__(self, mountain_car = None, grid_size=20, eta=0.05, 
-					gamma=0.95, lambda_=0.6, tau=0.5):
+	def __init__(self, mountain_car = None, grid_size=20, eta=0.0005, 
+					gamma=0.95, lambda_=0.7, tau=0.1):
 		
 		if mountain_car is None:
 			self.mountain_car = mountaincar.MountainCar()
@@ -55,7 +55,7 @@ class SarsaAgent():
 		self.mountain_car.reset()
 
 		#tau = 0.9
-		end_tau = 0.1
+		end_tau = 0.001
 		alpha = -n_steps/np.log(end_tau/self.tau)
 
 		tau = self.tau
@@ -89,8 +89,8 @@ class SarsaAgent():
 			The function returns an array of activity rj line by line of size N²
 		"""
 		# Compute the activity for each neurons
-		rj = np.exp(-(self.grid_x   - self.mountain_car.x)**2/self.sig_x**2 
-				    -(self.grid_phi - self.mountain_car.x_d)**2/self.grid_phi**2)
+		rj = np.exp(-(self.grid_x   - self.mountain_car.x)**2/(2*self.sig_x**2 )
+				    -(self.grid_phi - self.mountain_car.x_d)**2/(2*self.grid_phi**2))
 		# Return array in from top left to bottom right line after line
 		return np.reshape(rj, (self.N**2))
 
@@ -125,7 +125,8 @@ class SarsaAgent():
 		"""
 		# Compute exponential of each Q-activity over tau
 		Q, rj = self._activity_Q(w)
-		exp_action = np.exp(Q/tau)
+		# Avoid overflows for small tau (exp(1000 will overflow))
+		exp_action = np.exp(np.minimum(Q/tau, 500))
 		# Compute probability of taking each actions
 		prob_action = exp_action/np.sum(exp_action)
 
@@ -134,35 +135,35 @@ class SarsaAgent():
 
 		return action, Q, rj
 
-	def learn(self, trial_number = 100, verbose=False):
+	def learn(self, epochs = 100, verbose=False):
 		
 		n = 100
 		dt = 0.01
 		#tau = 0.9
-		maxTimesteps = 5000
+		maxTimesteps = 10000
 
 		w = 0.01*np.random.rand(3, self.N**2)+0.1
-		#w = np.zeros((3, self.N**2))
+		#w = np.ones((3, self.N**2))
 		e = np.zeros((3, self.N**2))
 
-		end_tau = 0.01
+		end_tau = 0.001
 		alpha = -maxTimesteps/np.log(end_tau/self.tau)
 
 		#end_eta = 0.05
 		#beta = -maxTimesteps/np.log(end_eta/self.eta)
 
 		# Save latencies for plotting and weights for posterior evaluation
-		trial_weights = np.zeros((trial_number, 3, self.N**2))
-		trial_latencies = np.zeros((trial_number, 1))
+		trial_weights = np.zeros((epochs, 3, self.N**2))
+		trial_latencies = np.zeros((epochs, 1))
 
 		# ********************* EPOCHS **********************
-		for trial in range(trial_number):
+		for trial in range(epochs):
 			#init
 			self.mountain_car.reset()			
 			tau = self.tau
 			#eta = self.eta
 
-			# ************ LEARNING - 1 TRAIL ***************
+			# ************ LEARNING - 1 TRIAL ***************
 
 			# choose first action according to policy (when w=0, random)
 			a, Q_s, rj_s = self._choose_action(w, tau)
@@ -208,31 +209,44 @@ class SarsaAgent():
 
 		return trial_weights, trial_latencies
 
-	def execute_trial(self, w):
-		# make sure the mountain-car is reset
-		self.mountain_car.reset()
+	def execute_trial(self, w, runs=1):
+		"""
+			Run a trial for an agent with neural network w.
+			Input: 
+				-w:    weights of neurons
+				-runs: number of runs to be tested
+			Ouput:
+				-mean of the escape time over the number of runs
+				-standard deviation of the escape time over the number of runs
+		"""
+		tau = 0.01
+		maxSteps = 10000
+		latencies = np.zeros((runs, 1))
+		for run in range(runs):
+			n=0
+			# make sure the mountain-car is reset
+			self.mountain_car.reset()
+			while self.mountain_car.R < 1 and n < maxSteps:
+				n = n+1
+				# choose first action according to policy
+				a, Q, rj = self._choose_action(w, tau)
+				# Simulate the action
+				self.mountain_car.apply_force(a-1)
+				# simulate the timestep
+				self.mountain_car.simulate_timesteps(100, 0.01)
+			latencies[run] = self.mountain_car.t
+			print(latencies[run]) 
 
-		tau = 0.1
-		maxSteps = 600
-		n=0
-		while self.mountain_car.R < 1 and n < maxSteps:
-			n = n+1
-			# choose first action according to policy
-			a, Q, rj = self._choose_action(w, tau)
-			# Simulate the action
-			self.mountain_car.apply_force(a-1)
-			# simulate the timestep
-			self.mountain_car.simulate_timesteps(100, 0.01)         
-		print("out in ", self.mountain_car.t)
-		return self.mountain_car.t
+		print("Mean escape time: ", np.mean(latencies))
+		return np.mean(latencies), np.std(latencies)
 
 if __name__ == "__main__":
 
 	verbose = False
-	trial_number = 100
+	trial_number = 500
 	d = SarsaAgent()
 	for i in range(10):
-		print("AGENT ", i)
+		print("AGENT ", i+1)
 		w, latencies = d.learn(trial_number, verbose)
 		w_id = 'data/Trial_weights_%.2d' % i +'.npy'
 		lat_id = 'data/Trial_latencies_%.2d' %i + '.npy'

@@ -22,29 +22,38 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 			print("Undefined file(s)")
 			return
 
+	# ******* TEST AN AGENT AT DIFFERENT EPOCHS OF LEARNING *****************
 	if (test):
-		nb_episode_played = 10
+		nb_episode_played = 100
+		nb_runs = 10
 		s = sarsa.SarsaAgent()
 		step = int(trial_number/nb_episode_played)
-		print(step)
-		start = step + trial_number%nb_episode_played
-		print(start)
-		t_out = np.zeros((agent_number, nb_episode_played, 1))
+		start = step - 1 + trial_number%nb_episode_played
+		t_out = np.zeros((agent_number, nb_episode_played+1, 2))
 		for agent in range(agent_number):
-			for i, trial in enumerate(range(start-1, trial_number+step-1, step)):
-				t_out[agent, i] = s.execute_trial(w[agent, trial])
+			t_out[agent, 0] = s.execute_trial(w[agent, 0], nb_runs)
+			for i, trial in enumerate(range(start, trial_number, step)):
+				print(trial)
+				t_out[agent, i+1] = s.execute_trial(w[agent, trial], nb_runs)
 
+		np.save('test_escape_smallTau.npy', t_out)
+		print("escape time saved!")
+
+		# Plot results of testing different agents at different epochs of learning
 		plt.figure(1)
-		plt.plot(np.arange(1, nb_episode_played+1)*step, 
-					np.mean(t_out, axis=0))
+		plt.errorbar(np.arange(0, nb_episode_played+1)*step, 
+					np.mean(t_out, axis=0)[:, 0], np.std(t_out, axis=0)[:, 0])
 		plt.show()
 
+	# ********* PLOT DATA FROM LEARNING ITSELF ********************************
+	# latencies
 	plt.figure(2)
 	plt.errorbar(np.arange(learning_latencies.shape[1]), 
-				np.mean(learning_latencies, axis=0), np.std(learning_latencies, axis=0))
+				 np.mean(learning_latencies, axis=0), 
+				 np.std(learning_latencies, axis=0))
 	plt.show()
 	
-
+	# weight evolution
 	w_mean_agents = np.mean(w, axis=0)
 	w_mean_neurons = np.mean(w_mean_agents, axis=2)
 	plt.figure(3)
