@@ -10,7 +10,7 @@ class SarsaAgent():
 	"""
 
 	def __init__(self, mountain_car = None, grid_size=20, eta=0.05, 
-					gamma=0.95, lambda_=0.9, tau=1., decay=True):
+					gamma=0.95, lambda_=0.4, tau=1., decay=True, w_init='variance'):
 		
 		if mountain_car is None:
 			self.mountain_car = mountaincar.MountainCar()
@@ -29,6 +29,7 @@ class SarsaAgent():
 		self.tau = tau
 
 		self.decay = decay
+		self.w_init = w_init
 
 		# Gaussian width is the distance between centers
 		self.sig_x = 180./(self.N-1)
@@ -159,17 +160,19 @@ class SarsaAgent():
 		
 		n = 100
 		dt = 0.01
-		#tau = 0.9
 		maxTimesteps = 5000
 
-		w = 0.01*np.random.rand(3, self.N**2)+0.5
-		#w = np.zeros((3, self.N**2))
+		if (self.w_init=='zero'):
+			w = np.zeros((3, self.N**2))
+		elif (self.w_init=='one'):
+			w = np.ones((3, self.N**2))
+		elif (self.init=='rand'):
+			w = np.random.rand(3, self.N**2)
+		else:
+			w = 0.01*np.random.rand(3, self.N**2)+0.5
 
 		end_tau = 0.01
-		alpha = -maxTimesteps/np.log(end_tau/self.tau)
-
-		#end_eta = 0.05
-		#beta = -maxTimesteps/np.log(end_eta/self.eta)
+		#alpha = -maxTimesteps/np.log(end_tau/self.tau)
 
 		# Save latencies for plotting and weights for posterior evaluation
 		trial_weights = np.zeros((epochs, 3, self.N**2))
@@ -299,21 +302,21 @@ class SarsaAgent():
 		im = ax.imshow(Q_values, extent=[-150, 50, -15, 15])
 		ax.quiver(self.grid_x, self.grid_phi, U, V, angles='xy', pivot='middle')
 		fig.colorbar(im)
-		ax.set(aspect=5, title='Action Field')
+		ax.set(aspect='auto', title='Action Field')
 		plt.show()
 
 		return
-
 
 if __name__ == "__main__":
 
 	verbose = False
 	trying_etas = False
 	decay = True
-
-	trial_number = 300
-	Agents = 10
 	tau = 1.
+	elig_decay = 0.
+
+	trial_number = 150
+	Agents = 5
 
 	if(trying_etas):
 		etas = np.logspace(-7, 0, Agents)
@@ -323,14 +326,14 @@ if __name__ == "__main__":
 
 	for i in range(Agents):
 		if(trying_etas):
-			d = SarsaAgent(eta=etas[i], decay=decay, tau=tau)
+			d = SarsaAgent(eta=etas[i], decay=decay, tau=tau, lambda_=elig_decay)
 		else:
-			d = SarsaAgent(decay=decay, tau=tau)
+			d = SarsaAgent(decay=decay, tau=tau, lambda_=elig_decay)
 		print("AGENT ", i+1)
 		w, latencies = d.learn(trial_number, verbose)
 
-		w_id = 'data/weightsTauDecay_%.2d' % i +'.npy'
-		lat_id = 'data/latenciesTauDecay_%.2d' %i + '.npy'
+		w_id = 'data/weightsNoEllig_%.2d' % i +'.npy'
+		lat_id = 'data/latenciesNoEllig_%.2d' %i + '.npy'
 
 		np.save(w_id, w)
 		np.save(lat_id, latencies)

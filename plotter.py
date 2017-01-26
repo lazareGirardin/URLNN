@@ -13,8 +13,8 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 	
 	for i in range(agent_number):
 		j=i+1
-		w_id = "data/weightsTauDecay_%.2d" % i + ".npy"
-		lat_id = "data/latenciesTauDecay_%.2d" % i + ".npy"
+		w_id = "data/weightsNoEllig_%.2d" % i + ".npy"
+		lat_id = "data/latenciesNoEllig_%.2d" % i + ".npy"
 
 		print(w_id)
 		print(lat_id)
@@ -77,12 +77,12 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 	
 	plt.figure(2)
 	plt.title("Mean latencies during learning", fontsize=30)
-	#plt.errorbar(np.arange(learning_latencies.shape[1]), 
-	#			 np.mean(learning_latencies, axis=0), 
-	#			 np.std(learning_latencies, axis=0))
-	plt.errorbar(np.arange(150), 
-				 np.mean(learning_latencies, axis=0)[0:150], 
-				 np.std(learning_latencies, axis=0)[0:150])
+	plt.errorbar(np.arange(learning_latencies.shape[1]), 
+				 np.mean(learning_latencies, axis=0), 
+				 np.std(learning_latencies, axis=0))
+	#plt.errorbar(np.arange(100), 
+	#			 np.mean(learning_latencies, axis=0)[0:100], 
+	#			 np.std(learning_latencies, axis=0)[0:100])
 	#plt.plot(np.arange(1, learning_latencies.shape[1]-1), mvg_avg)
 	plt.xlabel("Epoch", fontsize = 20)
 	plt.ylabel("Latency", fontsize = 20)
@@ -100,6 +100,43 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 	plt.plot(np.arange(learning_latencies.shape[1]), w_norm)
 	plt.xlabel("Epoch", fontsize = 20)
 	plt.ylabel("Norm of weights", fontsize = 20)
+	plt.rc('xtick', labelsize=20) 
+	plt.rc('ytick', labelsize=20)
+	plt.grid()
+	plt.show()
+
+def compare_latencies(agent_number, trial_number):
+
+	w1 = np.zeros((agent_number, trial_number, 3, 400))
+	t1 = np.zeros((agent_number, trial_number, 1))
+
+	w2 = np.zeros((agent_number, trial_number, 3, 400))
+	t2 = np.zeros((agent_number, trial_number, 1))
+	
+	for i in range(agent_number):
+		j=i+1
+		w_id_1 = "data/150epochs_10agents_weights1/weightsTauDecay_%.2d" % i + ".npy"
+		lat_id_1 = "data/150epochs_10agents_weights1/latenciesTauDecay_%.2d" % i + ".npy"
+
+		w_id_2 = "data/weightsNoEllig_%.2d" % i + ".npy"
+		lat_id_2 = "data/latenciesNoEllig_%.2d" % i + ".npy"
+
+		if os.path.isfile(w_id_1) and os.path.isfile(lat_id_1) and os.path.isfile(w_id_2) and os.path.isfile(lat_id_2):
+			w1[i] = np.load(w_id_1)
+			w2[i] = np.load(w_id_2)
+			t1[i] = np.load(lat_id_1)
+			t2[i] = np.load(lat_id_2)
+		else:
+			print("Undefined file(s)")
+			return
+
+	plt.figure(1)
+	plt.title("Eligibility Decay Effect", fontsize=30)
+	plt.plot(np.arange(100), np.mean(t1, axis=0)[0:100], label='Eligibility Decay of 0.95', color='b')
+	plt.plot(np.arange(100), np.mean(t2, axis=0)[0:100], label='Eligibility Decay of 0', color='r')
+	plt.legend()
+	plt.xlabel("Epoch", fontsize = 20)
+	plt.ylabel("Latencies", fontsize = 20)
 	plt.rc('xtick', labelsize=20) 
 	plt.rc('ytick', labelsize=20)
 	plt.grid()
