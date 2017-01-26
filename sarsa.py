@@ -1,6 +1,7 @@
 import sys
 
 import pylab as plb
+import matplotlib.pyplot as plt
 import numpy as np
 import mountaincar
 
@@ -8,8 +9,8 @@ class SarsaAgent():
 	"""A not so good agent for the mountain-car task.
 	"""
 
-	def __init__(self, mountain_car = None, grid_size=20, eta=0.0005, 
-					gamma=0.95, lambda_=0.7, tau=0.1):
+	def __init__(self, mountain_car = None, grid_size=20, eta=0.05, 
+					gamma=0.95, lambda_=0.9, tau=0.4):
 		
 		if mountain_car is None:
 			self.mountain_car = mountaincar.MountainCar()
@@ -28,8 +29,8 @@ class SarsaAgent():
 		self.tau = tau
 
 		# Gaussian width is the distance between centers
-		self.sig_x = 180/self.N
-		self.sig_phi = 30/self.N
+		self.sig_x = 180./self.N
+		self.sig_phi = 30./self.N
 		# The centers are placed along the intervals
 		x_centers = np.linspace(-150.0, 30.0, self.N)
 		phi_centers = np.linspace(15.0, -15.0, self.N)
@@ -55,17 +56,18 @@ class SarsaAgent():
 		self.mountain_car.reset()
 
 		#tau = 0.9
-		end_tau = 0.001
+		end_tau = 0.0001
 		alpha = -n_steps/np.log(end_tau/self.tau)
 
 		tau = self.tau
 		for n in range(n_steps):
-			print("\rt =", self.mountain_car.t,
-							sys.stdout.flush())  
+			#print("\rt =", self.mountain_car.t,
+			#				sys.stdout.flush())  
 
 			tau = self.tau*np.exp(-n/alpha)
+			s = [self.mountain_car.x, self.mountain_car.x_d]
 			# choose first action according to policy
-			a, Q, rj = self._choose_action(w, end_tau)
+			a, Q, rj = self._choose_action(w, s, end_tau)
 			#Q, dummy  = self._activity_Q(w)
 			#a = np.argmax(Q)
 			# Simulate the action
@@ -82,19 +84,20 @@ class SarsaAgent():
 			if self.mountain_car.R > 0.0:
 				print ("\rreward obtained at t = ", self.mountain_car.t)
 				break
+		print("no reward :(")
 
-	def _activity_r(self):
+	def _activity_r(self, state):
 		"""
 			Computes the Gaussian activities r of input neurons.
 			The function returns an array of activity rj line by line of size N²
 		"""
 		# Compute the activity for each neurons
-		rj = np.exp(-(self.grid_x   - self.mountain_car.x)**2/(2*self.sig_x**2 )
-				    -(self.grid_phi - self.mountain_car.x_d)**2/(2*self.grid_phi**2))
+		rj = np.exp(-(self.grid_x   - state[0])**2/((self.sig_x)**2 )
+					-(self.grid_phi - state[1])**2/((self.sig_phi)**2))
 		# Return array in from top left to bottom right line after line
 		return np.reshape(rj, (self.N**2))
 
-	def _activity_Q(self, w):
+	def _activity_Q(self, w, state):
 		"""
 			Compute the activity of the output neurons of a state s = (x, x_d)
 			The functions returns an array of the activity for 
@@ -106,11 +109,12 @@ class SarsaAgent():
 						-x_d : speed of the car
 			Ouput: 
 					-Q : Q-activity of shape [# output neurons]
+					-rj: Neurons response depending on the state
 		"""
-		rj = self._activity_r()
+		rj = self._activity_r(state)
 		return np.dot(w,rj), rj
 
-	def _choose_action(self, w, tau):
+	def _choose_action(self, w, state, tau):
 		"""
 			Choose an action depending for a state s=(x, x_d)
 			Inputs:
@@ -122,9 +126,10 @@ class SarsaAgent():
 			output:
 					-action : (-1) for backward, (0) for engine stop and (+1) for forward
 					-Q      : Q activity at current timestep
+					-rj: Neurons response depending on the state
 		"""
 		# Compute exponential of each Q-activity over tau
-		Q, rj = self._activity_Q(w)
+		Q, rj = self._activity_Q(w, state)
 		# Avoid overflows for small tau (exp(1000 will overflow))
 		exp_action = np.exp(np.minimum(Q/tau, 500))
 		# Compute probability of taking each actions
@@ -136,17 +141,28 @@ class SarsaAgent():
 		return action, Q, rj
 
 	def learn(self, epochs = 100, verbose=False):
+		"""
+			Learn the optimal weights for an agent to complete the task,
+			following the sarsa-algorithm.
+			Input parameters:
+				- epochs: 	Number of trials to train on
+				- verbose:	Wether or not to visulize a trial every 20 epochs
+			Ouput:
+				- w:			The weights of each ouput neurons (3 actions), 
+								at each epoch of training.
+								Size: (#epochs, #ouput neurons, #neurons)
+				- latencies: 	The escape latency for each trial
+		"""
 		
 		n = 100
 		dt = 0.01
 		#tau = 0.9
 		maxTimesteps = 10000
 
-		w = 0.01*np.random.rand(3, self.N**2)+0.1
-		#w = np.ones((3, self.N**2))
-		e = np.zeros((3, self.N**2))
+		#w = 0.01*np.random.rand(3, self.N**2)+0.1
+		w = np.zeros((3, self.N**2))
 
-		end_tau = 0.001
+		end_tau = 0.0001
 		alpha = -maxTimesteps/np.log(end_tau/self.tau)
 
 		#end_eta = 0.05
@@ -159,32 +175,35 @@ class SarsaAgent():
 		# ********************* EPOCHS **********************
 		for trial in range(epochs):
 			#init
-			self.mountain_car.reset()			
+			self.mountain_car.reset()
+			e = np.zeros((3, self.N**2))			
 			tau = self.tau
 			#eta = self.eta
 
 			# ************ LEARNING - 1 TRIAL ***************
 
 			# choose first action according to policy (when w=0, random)
-			a, Q_s, rj_s = self._choose_action(w, tau)
+			s = [self.mountain_car.x, self.mountain_car.x_d]
+			a, Q_s, rj_s = self._choose_action(w, s, tau)
 			# Simulate the action
 			self.mountain_car.apply_force(a-1)
 			# simulate the timestep
 			self.mountain_car.simulate_timesteps(n, dt)
+			s = [self.mountain_car.x, self.mountain_car.x_d]
 
 			for i in range(maxTimesteps):
 				# Decaying exploration parameter
-				tau = self.tau*np.exp(-i/alpha)
+				#tau = self.tau*np.exp(-i/alpha)
 				#eta = self.eta*np.exp(-i/beta)
 
 				# choose next action according to policy
-				a_next, Q_s, rj_s = self._choose_action(w, tau)
-				#print(Q_s)
+				a_next, Q_s, rj_s = self._choose_action(w, s, tau)
 				# Simulate the action
 				self.mountain_car.apply_force(a_next-1)
 				self.mountain_car.simulate_timesteps(n, dt)
+				s_next = [self.mountain_car.x, self.mountain_car.x_d]
 
-				Q_next, dummy = self._activity_Q(w)
+				Q_next, r_next = self._activity_Q(w, s_next)
 				# Compute Temporal difference error
 				TD_err = self.mountain_car.R - (Q_s[a] - self.gamma*Q_next[a_next])
 				# Elligibility update
@@ -195,13 +214,15 @@ class SarsaAgent():
 				w = w + self.eta*TD_err*e
 				# Update action
 				a = a_next
+				s = s_next
 
 				if self.mountain_car.R >= 1:
 					break
 
 			print("\t TRIAL {t},  timesteps {ts}".format(t=trial+1, ts=self.mountain_car.t))
 			if verbose and trial%20==0:
-				self.visualize_trial(w, 250)
+				#self.visualize_trial(w, 250)
+				self.action_field(w)
 				plb.close()
 
 			trial_weights[trial] = w
@@ -219,7 +240,7 @@ class SarsaAgent():
 				-mean of the escape time over the number of runs
 				-standard deviation of the escape time over the number of runs
 		"""
-		tau = 0.01
+		tau = 0.0001
 		maxSteps = 10000
 		latencies = np.zeros((runs, 1))
 		for run in range(runs):
@@ -229,29 +250,85 @@ class SarsaAgent():
 			while self.mountain_car.R < 1 and n < maxSteps:
 				n = n+1
 				# choose first action according to policy
-				a, Q, rj = self._choose_action(w, tau)
+				s = [self.mountain_car.x, self.mountain_car.x_d]
+				a, Q, rj = self._choose_action(w, s, tau)
 				# Simulate the action
 				self.mountain_car.apply_force(a-1)
 				# simulate the timestep
 				self.mountain_car.simulate_timesteps(100, 0.01)
 			latencies[run] = self.mountain_car.t
-			print(latencies[run]) 
+			#print(latencies[run]) 
 
 		print("Mean escape time: ", np.mean(latencies))
 		return np.mean(latencies), np.std(latencies)
 
+	def action_field(self, w):
+		"""
+		Print the Quiver plot (vector field) of the actions in the state graph.
+
+		"""
+		actions = np.zeros((self.N, self.N))
+		Q_values = np.zeros((self.N, self.N))
+
+		x_centers = np.linspace(-150.0, 30.0, self.N)
+		phi_centers = np.linspace(15.0, -15.0, self.N)
+
+		for i in range(self.N):
+			for j in range(self.N):
+				Q, r = self._activity_Q(w, [x_centers[i], phi_centers[j]])
+				actions[j, i] = np.argmax(Q)-1
+				Q_values[j, i] = np.max(Q)
+				#print(Q)
+		
+		#print(actions)
+		V = np.zeros((actions.shape[0], actions.shape[1]))
+		U = actions
+		fig, ax = plt.subplots()
+		im = ax.imshow(Q_values, extent=[-150, 50, -15, 15])
+		ax.quiver(self.grid_x, self.grid_phi, U, V, angles='xy', pivot='middle')
+		fig.colorbar(im)
+		ax.set(aspect=5, title='Action Field')
+		plt.show()
+
+		return
+
+
 if __name__ == "__main__":
 
-	verbose = False
-	trial_number = 500
-	d = SarsaAgent()
+	verbose = True
+	trying_etas = False
+
+	trial_number = 20
+	if(trying_etas):
+		etas = np.logspace(-7, 0, 10)
+	mean_lat_tests = np.zeros((10, 1))
+	std_lat_tests = np.zeros((10, 1))
 	for i in range(10):
+		if(trying_etas):
+			d = SarsaAgent(eta=etas[i])
+		else:
+			d = SarsaAgent()
 		print("AGENT ", i+1)
 		w, latencies = d.learn(trial_number, verbose)
-		w_id = 'data/Trial_weights_%.2d' % i +'.npy'
-		lat_id = 'data/Trial_latencies_%.2d' %i + '.npy'
+		w_id = 'data/weights20_%.2d' % i +'.npy'
+		lat_id = 'data/latencies20_%.2d' %i + '.npy'
 		np.save(w_id, w)
 		np.save(lat_id, latencies)
+		#mean_lat_tests[i], std_lat_tests[i] = d.execute_trial(w[-1], 10)
+
+
+	if(trying_etas):
+		plt.figure(1)
+		plt.title("Influence of Learning Rate", fontsize=30)
+		plt.errorbar(etas, mean_lat_tests, std_lat_tests)
+		plt.xlabel("Eta", fontsize = 20)
+		plt.ylabel("Test latencies", fontsize = 20)
+		plt.xscale("log")
+		plt.xlim((0.9e-5, 1.1e-1))
+		plt.rc('xtick', labelsize=20) 
+		plt.rc('ytick', labelsize=20)
+		plt.grid()
+		plt.show()
 	#import pdb; pdb.set_trace()
 	#d.visualize_trial(w[-1], 400)
 	#plb.show()
