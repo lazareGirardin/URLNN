@@ -10,7 +10,7 @@ class SarsaAgent():
 	"""
 
 	def __init__(self, mountain_car = None, grid_size=20, eta=0.05, 
-					gamma=0.95, lambda_=0.9, tau=0.4):
+					gamma=0.95, lambda_=0.9, tau=1., decay=True):
 		
 		if mountain_car is None:
 			self.mountain_car = mountaincar.MountainCar()
@@ -28,9 +28,11 @@ class SarsaAgent():
 		# Exploration parameter
 		self.tau = tau
 
+		self.decay = decay
+
 		# Gaussian width is the distance between centers
-		self.sig_x = 180./self.N
-		self.sig_phi = 30./self.N
+		self.sig_x = 180./(self.N-1)
+		self.sig_phi = 30./(self.N-1)
 		# The centers are placed along the intervals
 		x_centers = np.linspace(-150.0, 30.0, self.N)
 		phi_centers = np.linspace(15.0, -15.0, self.N)
@@ -131,7 +133,8 @@ class SarsaAgent():
 		# Compute exponential of each Q-activity over tau
 		Q, rj = self._activity_Q(w, state)
 		# Avoid overflows for small tau (exp(1000 will overflow))
-		exp_action = np.exp(np.minimum(Q/tau, 500))
+		#exp_action = np.exp(np.minimum(Q/tau, 500))
+		exp_action = np.exp(Q/tau)
 		# Compute probability of taking each actions
 		prob_action = exp_action/np.sum(exp_action)
 
@@ -157,12 +160,12 @@ class SarsaAgent():
 		n = 100
 		dt = 0.01
 		#tau = 0.9
-		maxTimesteps = 10000
+		maxTimesteps = 5000
 
-		#w = 0.01*np.random.rand(3, self.N**2)+0.1
-		w = np.zeros((3, self.N**2))
+		w = 0.01*np.random.rand(3, self.N**2)+0.5
+		#w = np.zeros((3, self.N**2))
 
-		end_tau = 0.0001
+		end_tau = 0.01
 		alpha = -maxTimesteps/np.log(end_tau/self.tau)
 
 		#end_eta = 0.05
@@ -184,35 +187,41 @@ class SarsaAgent():
 
 			# choose first action according to policy (when w=0, random)
 			s = [self.mountain_car.x, self.mountain_car.x_d]
+			#a = np.random.randint(3)-1
 			a, Q_s, rj_s = self._choose_action(w, s, tau)
+			
 			# Simulate the action
-			self.mountain_car.apply_force(a-1)
+			#self.mountain_car.apply_force(a-1)
 			# simulate the timestep
-			self.mountain_car.simulate_timesteps(n, dt)
-			s = [self.mountain_car.x, self.mountain_car.x_d]
+			#self.mountain_car.simulate_timesteps(n, dt)
+			#s = [self.mountain_car.x, self.mountain_car.x_d]
 
 			for i in range(maxTimesteps):
 				# Decaying exploration parameter
-				#tau = self.tau*np.exp(-i/alpha)
-				#eta = self.eta*np.exp(-i/beta)
+				if (self.decay):
+					#tau = self.tau*np.exp(-i/alpha)
+					tau = np.maximum(self.tau*np.exp(-i/10.), end_tau)
 
-				# choose next action according to policy
-				a_next, Q_s, rj_s = self._choose_action(w, s, tau)
-				# Simulate the action
-				self.mountain_car.apply_force(a_next-1)
+				# Observe s'
+				self.mountain_car.apply_force(a-1)
+				# simulate the timestep
 				self.mountain_car.simulate_timesteps(n, dt)
 				s_next = [self.mountain_car.x, self.mountain_car.x_d]
 
-				Q_next, r_next = self._activity_Q(w, s_next)
+				# choose next action according to policy
+				a_next, Q_next, rj_next = self._choose_action(w, s_next, tau)
+
+				# Compute Q[s, a]
+				Q_s, rj_s = self._activity_Q(w, s)
+
 				# Compute Temporal difference error
 				TD_err = self.mountain_car.R - (Q_s[a] - self.gamma*Q_next[a_next])
-				# Elligibility update
+				# Eligibility update
 				e = self.gamma*self.lambda_*e
-				#import pdb; pdb.set_trace()
 				e[a] = e[a] + rj_s
 				# Weights update
 				w = w + self.eta*TD_err*e
-				# Update action
+				# Update state and action
 				a = a_next
 				s = s_next
 
@@ -240,8 +249,8 @@ class SarsaAgent():
 				-mean of the escape time over the number of runs
 				-standard deviation of the escape time over the number of runs
 		"""
-		tau = 0.0001
-		maxSteps = 10000
+		tau = 0.01
+		maxSteps = 5000
 		latencies = np.zeros((runs, 1))
 		for run in range(runs):
 			n=0
@@ -251,7 +260,10 @@ class SarsaAgent():
 				n = n+1
 				# choose first action according to policy
 				s = [self.mountain_car.x, self.mountain_car.x_d]
-				a, Q, rj = self._choose_action(w, s, tau)
+				if (greedy):
+					a = np.argmax(self._activity_Q(w, s))
+				else:
+					a, Q, rj = self._choose_action(w, s, tau)
 				# Simulate the action
 				self.mountain_car.apply_force(a-1)
 				# simulate the timestep
@@ -295,27 +307,37 @@ class SarsaAgent():
 
 if __name__ == "__main__":
 
-	verbose = True
+	verbose = False
 	trying_etas = False
+	decay = True
 
-	trial_number = 20
+	trial_number = 300
+	Agents = 10
+	tau = 1.
+
 	if(trying_etas):
-		etas = np.logspace(-7, 0, 10)
+		etas = np.logspace(-7, 0, Agents)
+
 	mean_lat_tests = np.zeros((10, 1))
 	std_lat_tests = np.zeros((10, 1))
-	for i in range(10):
+
+	for i in range(Agents):
 		if(trying_etas):
-			d = SarsaAgent(eta=etas[i])
+			d = SarsaAgent(eta=etas[i], decay=decay, tau=tau)
 		else:
-			d = SarsaAgent()
+			d = SarsaAgent(decay=decay, tau=tau)
 		print("AGENT ", i+1)
 		w, latencies = d.learn(trial_number, verbose)
-		w_id = 'data/weights20_%.2d' % i +'.npy'
-		lat_id = 'data/latencies20_%.2d' %i + '.npy'
+
+		w_id = 'data/weightsTauDecay_%.2d' % i +'.npy'
+		lat_id = 'data/latenciesTauDecay_%.2d' %i + '.npy'
+
 		np.save(w_id, w)
 		np.save(lat_id, latencies)
 		#mean_lat_tests[i], std_lat_tests[i] = d.execute_trial(w[-1], 10)
 
+	
+	d.action_field(w[-1])
 
 	if(trying_etas):
 		plt.figure(1)

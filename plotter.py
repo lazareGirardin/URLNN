@@ -13,8 +13,8 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 	
 	for i in range(agent_number):
 		j=i+1
-		w_id = "data/weights20_%.2d" % i + ".npy"
-		lat_id = "data/latencies20_%.2d" % i + ".npy"
+		w_id = "data/weightsTauDecay_%.2d" % i + ".npy"
+		lat_id = "data/latenciesTauDecay_%.2d" % i + ".npy"
 
 		print(w_id)
 		print(lat_id)
@@ -27,7 +27,7 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 
 	# ******* TEST AN AGENT AT DIFFERENT EPOCHS OF LEARNING *****************
 	if (test):
-		nb_episode_played = 50
+		nb_episode_played = 10
 		nb_runs = 10
 		s = sarsa.SarsaAgent()
 		step = int(trial_number/nb_episode_played)
@@ -77,9 +77,12 @@ def plot_from_file(agent_number=1, trial_number=100, test=False):
 	
 	plt.figure(2)
 	plt.title("Mean latencies during learning", fontsize=30)
-	plt.errorbar(np.arange(learning_latencies.shape[1]), 
-				 np.mean(learning_latencies, axis=0), 
-				 np.std(learning_latencies, axis=0))
+	#plt.errorbar(np.arange(learning_latencies.shape[1]), 
+	#			 np.mean(learning_latencies, axis=0), 
+	#			 np.std(learning_latencies, axis=0))
+	plt.errorbar(np.arange(150), 
+				 np.mean(learning_latencies, axis=0)[0:150], 
+				 np.std(learning_latencies, axis=0)[0:150])
 	#plt.plot(np.arange(1, learning_latencies.shape[1]-1), mvg_avg)
 	plt.xlabel("Epoch", fontsize = 20)
 	plt.ylabel("Latency", fontsize = 20)
