@@ -1,3 +1,13 @@
+"""
+Train all agents with different parameters and save their weights and 
+escape latencies during training to visualize results with plotter.py
+
+The data are saved in different folders for each set of parameters
+
+Lazare Girardin - URLNN Mini-project 2
+"""
+
+
 import sys
 
 import pylab as plb
@@ -6,13 +16,14 @@ import numpy as np
 import mountaincar
 import sarsa
 
-def create_all_weights():
+if __name__ == "__main__":
 
 	trial_number = 300
 	agents = 10
 
 	# ******************** WEIGHTS ***********
 	# --- Tau decay --- weights zero ----
+	
 	print(" Testing weights: ZEROS")
 	for i in range(agents):
 		d = sarsa.SarsaAgent(decay=True, tau=1., w_init='zero')
@@ -109,7 +120,7 @@ def create_all_weights():
 		w, latencies = d.learn(epochs=trial_number)
 
 		w_id = 'ALLdata/l0/weights_%.2d' % i +'.npy'
-		lat_id = 'ALLdata/l0/latencies_%.2d' %i + '.npy'
+		lat_id = 'ALLdata/l0/latencies_%.2d' 100%i + '.npy'
 		np.save(w_id, w)
 		np.save(lat_id, latencies)
 
@@ -119,10 +130,10 @@ def create_all_weights():
 
 	# --- eta 0.5
 	print("Testing eta: 0.5")
-	for i in range(3):
+	for i in range(agents):
 		d = sarsa.SarsaAgent(decay=True, tau=1., w_init='variance', eta=0.5)
 		print("AGENT ", i+1)
-		w, latencies = d.learn(epochs=100)
+		w, latencies = d.learn(epochs=trial_number)
 
 		w_id = 'ALLdata/eta05/weights_%.2d' % i +'.npy'
 		lat_id = 'ALLdata/eta05/latencies_%.2d' %i + '.npy'
@@ -131,10 +142,10 @@ def create_all_weights():
 
 	# --- eta 0.9
 	print(" Testing eta: 0.9")
-	for i in range(3):
+	for i in range(agents):
 		d = sarsa.SarsaAgent(decay=True, tau=1., w_init='variance', eta=0.9)
 		print("AGENT ", i+1)
-		w, latencies = d.learn(epochs=100)
+		w, latencies = d.learn(epochs=trial_number)
 
 		w_id = 'ALLdata/eta09/weights_%.2d' % i +'.npy'
 		lat_id = 'ALLdata/eta09/latencies_%.2d' %i + '.npy'

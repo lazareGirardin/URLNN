@@ -1,3 +1,19 @@
+"""
+All function belonging to the sarsa agents.
+List of the functions:
+
+	-  visulalize_trial():	Visualize the run of an agant
+	-  learn():				Train an agent to perform the task
+	-  execute_trial():		Execute a run given weights w without learning.
+							Can be used to assess performance at a given epoch of learning
+	-  action_field():		Plot a vector field of the actions for each 
+							position in the position-speed space.
+	- _activity_r():		Compute the neurons response to a state s [position, speed]
+	- _activity_Q():		Compute the Q-value of a state s
+	- _choose_action():		Choose an action based on a softmax policy
+
+Lazare Girardin - URLNN Mini-project 2
+"""
 import sys
 
 import pylab as plb
@@ -59,7 +75,7 @@ class SarsaAgent():
 		self.mountain_car.reset()
 
 		#tau = 0.9
-		end_tau = 0.0001
+		end_tau = 0.001
 		alpha = -n_steps/np.log(end_tau/self.tau)
 
 		tau = self.tau
@@ -162,16 +178,19 @@ class SarsaAgent():
 		dt = 0.01
 		maxTimesteps = 5000
 
+		# Init of weights
 		if (self.w_init=='zero'):
 			w = np.zeros((3, self.N**2))
 		elif (self.w_init=='one'):
 			w = np.ones((3, self.N**2))
-		elif (self.init=='rand'):
+		elif (self.w_init=='rand'):
 			w = np.random.rand(3, self.N**2)
 		else:
 			w = 0.01*np.random.rand(3, self.N**2)+0.5
 
+		# Limit the decay of tau
 		end_tau = 0.01
+		# alpha can be used for an exponential decay parameter
 		#alpha = -maxTimesteps/np.log(end_tau/self.tau)
 
 		# Save latencies for plotting and weights for posterior evaluation
@@ -184,20 +203,12 @@ class SarsaAgent():
 			self.mountain_car.reset()
 			e = np.zeros((3, self.N**2))			
 			tau = self.tau
-			#eta = self.eta
 
 			# ************ LEARNING - 1 TRIAL ***************
 
-			# choose first action according to policy (when w=0, random)
 			s = [self.mountain_car.x, self.mountain_car.x_d]
-			#a = np.random.randint(3)-1
+			# choose first action according to policy (when w=0, random)
 			a, Q_s, rj_s = self._choose_action(w, s, tau)
-			
-			# Simulate the action
-			#self.mountain_car.apply_force(a-1)
-			# simulate the timestep
-			#self.mountain_car.simulate_timesteps(n, dt)
-			#s = [self.mountain_car.x, self.mountain_car.x_d]
 
 			for i in range(maxTimesteps):
 				# Decaying exploration parameter
@@ -207,7 +218,6 @@ class SarsaAgent():
 
 				# Observe s'
 				self.mountain_car.apply_force(a-1)
-				# simulate the timestep
 				self.mountain_car.simulate_timesteps(n, dt)
 				s_next = [self.mountain_car.x, self.mountain_car.x_d]
 
@@ -232,22 +242,26 @@ class SarsaAgent():
 					break
 
 			print("\t TRIAL {t},  timesteps {ts}".format(t=trial+1, ts=self.mountain_car.t))
+
+			# Visualize a run or a action vector-field
 			if verbose and trial%20==0:
 				#self.visualize_trial(w, 250)
 				self.action_field(w)
 				plb.close()
 
+			# Save data
 			trial_weights[trial] = w
 			trial_latencies[trial] = self.mountain_car.t
 
 		return trial_weights, trial_latencies
 
-	def execute_trial(self, w, runs=1):
+	def execute_trial(self, w, runs=10, greedy=False):
 		"""
 			Run a trial for an agent with neural network w.
 			Input: 
-				-w:    weights of neurons
-				-runs: number of runs to be tested
+				-w:    	  weights of neurons
+				-runs: 	  number of runs to be tested
+				-greedy:  only used to check performance with an argmax function
 			Ouput:
 				-mean of the escape time over the number of runs
 				-standard deviation of the escape time over the number of runs
@@ -293,9 +307,7 @@ class SarsaAgent():
 				Q, r = self._activity_Q(w, [x_centers[i], phi_centers[j]])
 				actions[j, i] = np.argmax(Q)-1
 				Q_values[j, i] = np.max(Q)
-				#print(Q)
 		
-		#print(actions)
 		V = np.zeros((actions.shape[0], actions.shape[1]))
 		U = actions
 		fig, ax = plt.subplots()
@@ -309,14 +321,22 @@ class SarsaAgent():
 
 if __name__ == "__main__":
 
+	"""
+		This can be used to train and try different parameters.
+		Note that the file run_all.py execute similarely trainings for
+		all parameters and save the results (weights, latencies) as
+		npy files (numpy matrix file). The file plotter.py can be used to
+		retrieve and plot or run the data that were saved.
+	"""
+
 	verbose = False
 	trying_etas = False
 	decay = True
 	tau = 1.
-	elig_decay = 0.
+	elig_decay = 0.7
 
-	trial_number = 150
-	Agents = 5
+	trial_number = 300
+	Agents = 10
 
 	if(trying_etas):
 		etas = np.logspace(-7, 0, Agents)
@@ -332,8 +352,8 @@ if __name__ == "__main__":
 		print("AGENT ", i+1)
 		w, latencies = d.learn(trial_number, verbose)
 
-		w_id = 'data/weightsNoEllig_%.2d' % i +'.npy'
-		lat_id = 'data/latenciesNoEllig_%.2d' %i + '.npy'
+		w_id = 'data/weights_%.2d' % i +'.npy'
+		lat_id = 'data/latencies_%.2d' %i + '.npy'
 
 		np.save(w_id, w)
 		np.save(lat_id, latencies)
